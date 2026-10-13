@@ -110,9 +110,6 @@ h1,h2,h3{font-family:var(--display);letter-spacing:-.02em;margin:0;text-wrap:bal
 .loaded .cimg{opacity:1}
 .texts{display:flex;flex-direction:column;gap:22px}
 .texts.skeleton .s{background:linear-gradient(90deg,var(--mist) 0,var(--mist-2) 40%,var(--mist) 80%);background-size:300% 100%;animation:sh 1.4s ease infinite;border-radius:6px}
-.leaflet-container a.pill.map-suggest{color:#fff}
-.map-suggest{position:absolute;left:16px;bottom:28px;z-index:1000;box-shadow:var(--shadow-2)}
-@media (max-width:860px){.map-suggest{display:none}}
 .thumb .ph{position:absolute;inset:0;display:grid;place-items:center}
 .thumb .ph i{width:26px;height:26px;border-radius:50%;background:var(--line-2)}
 .card-body{min-width:0;display:flex;flex-direction:column;gap:5px;padding-top:1px}
@@ -301,9 +298,7 @@ h1,h2,h3{font-family:var(--display);letter-spacing:-.02em;margin:0;text-wrap:bal
     </div>
     <article class="detail" id="detail" aria-live="polite"></article>
   </aside>
-  <div id="map" role="region" aria-label="Map of field localities">
-    <a class="pill map-suggest" href="https://survey123.arcgis.com/share/d871fd9c8ca445189b7aa0eb8ef54ac0" target="_blank" rel="noopener"><span class="dot" aria-hidden="true"></span>Suggest a locality</a>
-  </div>
+  <div id="map" role="region" aria-label="Map of field localities"></div>
 </main>
 
 <section class="reader" id="reader" aria-label="Field guide">
@@ -505,8 +500,6 @@ const filters = { q: "", level: null, journey: null, group: null };
 =================================================================== */
 const map = L.map("map", { zoomControl: false, attributionControl: true, minZoom: 4, maxBounds: [[50, -20], [80, 50]] }).fitBounds(NORWAY);
 map.attributionControl.setPrefix(false);
-L.DomEvent.disableClickPropagation(document.querySelector(".map-suggest"));
-L.DomEvent.disableScrollPropagation(document.querySelector(".map-suggest"));
 const kv = layer => L.tileLayer(`https://cache.kartverket.no/v1/wmts/1.0.0/${layer}/default/webmercator/{z}/{y}/{x}.png`, {
   maxZoom: 18, attribution: '© <a href="https://www.kartverket.no/" target="_blank" rel="noopener">Kartverket</a>'
 });
