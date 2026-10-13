@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Local Field Laboratories</title>
+<meta name="description" content="Geology field localities across Norway, each with a field guide. An iEarth project at the University of Bergen.">
+<meta name="theme-color" content="#ffffff">
+<meta property="og:title" content="Local Field Laboratories">
+<meta property="og:description" content="Geology field localities across Norway, each with a field guide. iEarth, University of Bergen.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%230b0c0d'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* Local Field Laboratories
+   ut.no-style map browser with iEarth's identity: the solid black disc, a plain grotesk, monochrome UI.
+   Levels are graded like Norwegian trails: green, blue, red. */
+:root{
+  --ink:#0b0c0d;          /* iEarth black */
+  --ink-2:#3d4246;
+  --ink-3:#6f777c;
+  --line:#e6e8e4;
+  --line-2:#d5d9d3;
+  --paper:#ffffff;
+  --mist:#f4f5f1;         /* warm neutral, leans toward the map's terrain greys */
+  --mist-2:#eceee8;
+  --g:#1e8a3c;            /* Level 100, green */
+  --b:#1b6dd1;            /* Level 200, blue  */
+  --r:#d3222e;            /* Level 300, red   */
+  --x:#6f777c;            /* ungraded */
+  --display:"Inter Tight","Helvetica Neue",Arial,system-ui,sans-serif;
+  --text:"Inter","Helvetica Neue",Arial,system-ui,sans-serif;
+  --header-h:64px;
+  --side-w:440px;
+  --r-lg:16px;
+  --r-md:12px;
+  --shadow-1:0 1px 2px rgba(11,12,13,.06),0 2px 8px rgba(11,12,13,.08);
+  --shadow-2:0 4px 24px rgba(11,12,13,.16);
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{font-family:var(--text);color:var(--ink);background:var(--paper);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0}
+a{color:inherit}
+:focus-visible{outline:2.5px solid var(--ink);outline-offset:2px;border-radius:8px}
+h1,h2,h3{font-family:var(--display);letter-spacing:-.02em;margin:0;text-wrap:balance}
+.tnum{font-variant-numeric:tabular-nums}
+
+/* ---------- Header ---------- */
+.top{position:fixed;inset:0 0 auto 0;height:calc(var(--header-h) + env(safe-area-inset-top,0px));padding:env(safe-area-inset-top,0px) 20px 0;display:flex;align-items:center;gap:16px;background:var(--paper);border-bottom:1px solid var(--line);z-index:1000}
+.brand{display:flex;align-items:center;gap:14px;text-decoration:none;min-width:0}
+.brand img{height:24px;width:auto;display:block}
+.brand .rule{width:1px;height:26px;background:var(--line-2);flex:none}
+.brand .name{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:-.01em;line-height:1.1;white-space:nowrap}
+.top .grow{flex:1}
+.top nav{display:flex;align-items:center;gap:6px}
+.navlink{font-weight:600;font-size:14px;text-decoration:none;padding:8px 12px;border-radius:999px;color:var(--ink-2)}
+.navlink:hover{background:var(--mist);color:var(--ink)}
+.pill{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:14px;text-decoration:none;padding:9px 16px;border-radius:999px;background:var(--ink);color:#fff;white-space:nowrap}
+.pill:hover{background:#2a2e31}
+.pill .dot{width:8px;height:8px;border-radius:50%;background:#fff}
+
+/* ---------- Shell ---------- */
+.shell{position:fixed;inset:calc(var(--header-h) + env(safe-area-inset-top,0px)) 0 0 0;display:grid;grid-template-columns:var(--side-w) 1fr}
+.side{position:relative;background:var(--paper);border-right:1px solid var(--line);overflow:hidden;display:flex;flex-direction:column;min-width:0;z-index:2}
+#map{height:100%;width:100%;background:#e8ece6;position:relative;z-index:0}
+
+/* ---------- List ---------- */
+.list-scroll{flex:1;overflow:auto;overscroll-behavior:contain}
+.intro{padding:24px 24px 6px;display:flex;flex-direction:column;gap:10px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;gap:8px}
+.eyebrow::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--ink)}
+.intro h1{font-size:30px;line-height:1.08;font-weight:800}
+.intro p{margin:0;color:var(--ink-2);max-width:42ch}
+.tools{position:sticky;top:0;background:var(--paper);z-index:3;padding:14px 24px 12px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid transparent;transition:border-color .2s}
+.tools.stuck{border-bottom-color:var(--line)}
+.search{position:relative;display:block}
+.search input{width:100%;font:inherit;font-size:15px;padding:12px 40px 12px 44px;border-radius:999px;border:1.5px solid var(--line);background:var(--mist);outline:none;color:var(--ink)}
+.search input::placeholder{color:var(--ink-3)}
+.search input:focus{border-color:var(--ink);background:#fff}
+.search .ic{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--ink-3);pointer-events:none}
+.search .clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:var(--ink-3)}
+.search .clear:hover{background:var(--mist-2);color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:flex;background:var(--mist);border-radius:999px;padding:3px;gap:2px}
+.seg button{flex:1;border-radius:999px;padding:7px 12px;font-size:14px;font-weight:600;color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:var(--shadow-1)}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px 6px 10px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:7px;color:var(--ink-2);transition:background .15s,border-color .15s,color .15s}
+.chip:hover{border-color:var(--line-2);color:var(--ink)}
+.chip .d{width:10px;height:10px;border-radius:50%;flex:none}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.chip[aria-pressed="true"] .d{box-shadow:0 0 0 2px #fff}
+.chip .n{color:var(--ink-3);font-weight:600}
+.chip[aria-pressed="true"] .n{color:rgba(255,255,255,.7)}
+.chip:disabled{opacity:.45;cursor:default}
+.result-row{display:flex;align-items:center;justify-content:space-between;padding:6px 24px 8px;font-size:13px;color:var(--ink-3);font-weight:600}
+.result-row button{font-weight:600;font-size:13px;color:var(--ink-2);text-decoration:underline;text-underline-offset:3px}
+.cards{padding:4px 12px 12px;display:flex;flex-direction:column;gap:2px}
+.card{display:grid;grid-template-columns:104px 1fr;gap:16px;padding:12px;border-radius:var(--r-md);text-align:left;width:100%;position:relative;transition:background .15s}
+.card:hover,.card.hot{background:var(--mist)}
+.card.is-active{background:var(--mist)}
+.card.is-active::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:3px;background:var(--ink)}
+.thumb{width:104px;height:88px;border-radius:10px;background:var(--mist-2) center/cover no-repeat;position:relative;overflow:hidden}
+.thumb canvas{width:100%!important;height:100%!important;object-fit:cover;object-position:top;display:block}
+.thumb .ph{position:absolute;inset:0;display:grid;place-items:center}
+.thumb .ph i{width:26px;height:26px;border-radius:50%;background:var(--line-2)}
+.card-body{min-width:0;display:flex;flex-direction:column;gap:5px;padding-top:1px}
+.card h3{font-size:17px;font-weight:700;line-height:1.2}
+.meta{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;font-size:13px;color:var(--ink-2);font-weight:500}
+.meta span{display:inline-flex;align-items:center;gap:5px}
+.grade{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--ink)}
+.grade i{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+.themes{font-size:13px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.note{padding:28px 24px;color:var(--ink-2);text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px}
+.note .btn{margin-top:4px}
+.skeleton .thumb,.skeleton .s{background:linear-gradient(90deg,var(--mist) 0,var(--mist-2) 40%,var(--mist) 80%);background-size:300% 100%;animation:sh 1.4s ease infinite}
+.skeleton .s{height:12px;border-radius:6px}
+@keyframes sh{0%{background-position:100% 0}100%{background-position:0 0}}
+.suggest{margin:8px 24px 24px;padding:18px;border-radius:var(--r-lg);background:var(--mist);display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start}
+.suggest .disc{width:36px;height:36px;border-radius:50%;background:var(--ink);display:grid;place-items:center;color:#fff;font-weight:800;font-size:20px;line-height:1}
+.suggest b{display:block;font-family:var(--display);font-size:16px;margin-bottom:2px}
+.suggest p{margin:0 0 10px;color:var(--ink-2);font-size:14px}
+.side-foot{padding:16px 24px 28px;display:flex;align-items:center;gap:12px;color:var(--ink-3);font-size:12px;border-top:1px solid var(--line)}
+.side-foot img{width:36px;height:36px;flex:none}
+
+/* ---------- Buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;border-radius:999px;padding:13px 20px;font-weight:600;font-size:15px;text-decoration:none;border:1.5px solid var(--line-2);background:#fff;color:var(--ink);white-space:nowrap}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn.primary:hover{background:#2a2e31}
+.btn.sm{padding:8px 14px;font-size:14px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+
+/* ---------- Detail ---------- */
+.detail{position:absolute;inset:0;background:#fff;overflow:auto;overscroll-behavior:contain;transform:translateX(-102%);transition:transform .3s cubic-bezier(.2,.8,.2,1);z-index:4;visibility:hidden}
+.detail.open{transform:none;visibility:visible}
+.hero{position:relative;height:250px;background:var(--mist-2) center/cover no-repeat;flex:none}
+.hero canvas{width:100%!important;height:100%!important;object-fit:cover;object-position:top;display:block}
+.hero::after{content:"";position:absolute;inset:auto 0 0 0;height:80px;background:linear-gradient(to top,rgba(0,0,0,.18),transparent);pointer-events:none}
+.hero-bar{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:8px;z-index:1}
+.fab{display:inline-flex;align-items:center;gap:6px;background:#fff;border-radius:999px;height:38px;padding:0 14px 0 10px;font-weight:600;font-size:14px;box-shadow:var(--shadow-1)}
+.fab.icon{width:38px;padding:0;justify-content:center}
+.d-body{padding:22px 24px 28px;display:flex;flex-direction:column;gap:22px}
+.d-head{display:flex;flex-direction:column;gap:10px}
+.d-head .row{display:flex;flex-wrap:wrap;gap:8px}
+.tag{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:5px 11px 5px 9px;font-size:13px;font-weight:700;background:var(--mist)}
+.tag i{width:10px;height:10px;border-radius:50%}
+.d-head h2{font-size:32px;line-height:1.05;font-weight:800}
+.coords{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-3);font-weight:500}
+.coords button{color:var(--ink-2);font-weight:600;text-decoration:underline;text-underline-offset:3px;font-size:13px}
+.cta{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cta .btn.primary{grid-column:1 / -1;padding:15px 20px;font-size:16px}
+.guide{border:1.5px solid var(--line);border-radius:var(--r-lg);overflow:hidden;cursor:pointer;display:grid;grid-template-columns:120px 1fr;align-items:stretch;transition:border-color .15s}
+.guide:hover{border-color:var(--ink)}
+.guide .pg{background:var(--mist);position:relative;aspect-ratio:210/297;max-width:100%}
+.guide .pg canvas{width:100%!important;height:100%!important;display:block}
+.guide .gt{padding:16px;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.guide .gt b{font-family:var(--display);font-size:17px}
+.guide .gt span{color:var(--ink-3);font-size:13px}
+.guide .gt u{margin-top:8px;font-weight:600;font-size:14px;text-underline-offset:3px}
+.section h4{margin:0 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.section p{margin:0;color:var(--ink-2);white-space:pre-line;max-width:62ch}
+.theme-tags{display:flex;flex-wrap:wrap;gap:6px}
+.theme-tags span{border:1.5px solid var(--line);border-radius:999px;padding:4px 11px;font-size:13px;font-weight:600;color:var(--ink-2)}
+
+/* ---------- Reader ---------- */
+.reader{position:fixed;top:calc(var(--header-h) + env(safe-area-inset-top,0px));right:0;bottom:0;left:var(--side-w);background:#26292b;z-index:900;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1);visibility:hidden}
+.reader.open{transform:none;visibility:visible}
+.r-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--ink);color:#fff;flex:none}
+.r-bar b{font-family:var(--display);font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r-bar .grow{flex:1}
+.ib{border:0;background:rgba(255,255,255,.1);color:#fff;border-radius:999px;height:36px;min-width:36px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:600;font-size:14px;text-decoration:none}
+.ib:hover{background:rgba(255,255,255,.2)}
+.r-pages{flex:1;overflow:auto;padding:24px 16px 56px;display:flex;flex-direction:column;align-items:center;gap:18px}
+.r-pages canvas{background:#fff;box-shadow:0 8px 28px rgba(0,0,0,.4);max-width:100%;height:auto}
+.r-status{color:#cfd5d8;padding:48px;text-align:center}
+
+/* ---------- Map ---------- */
+.leaflet-container{font-family:var(--text)}
+.pin{position:relative;width:34px;height:34px;display:grid;place-items:center}
+.pin b{width:20px;height:20px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);transition:transform .15s;display:block}
+.pin.hot b{transform:scale(1.25)}
+.pin.on b{transform:scale(1.4);box-shadow:0 0 0 3px var(--ink),0 2px 8px rgba(0,0,0,.4)}
+.cluster{width:44px;height:44px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:15px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.cluster.lg{width:54px;height:54px;font-size:17px}
+.leaflet-tooltip.lfl-tip{font-family:var(--text);font-weight:600;font-size:13px;border:0;border-radius:8px;box-shadow:var(--shadow-1);padding:6px 10px;color:var(--ink)}
+.leaflet-tooltip.lfl-tip::before{display:none}
+.mapbtns{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.mgroup{background:#fff;border-radius:12px;box-shadow:var(--shadow-1);display:flex;flex-direction:column;overflow:hidden}
+.mgroup button{width:40px;height:40px;display:grid;place-items:center;color:var(--ink)}
+.mgroup button + button{border-top:1px solid var(--line)}
+.mgroup button:hover{background:var(--mist)}
+.mgroup button.busy{color:var(--b)}
+.basemaps{background:#fff;border-radius:999px;box-shadow:var(--shadow-1);display:flex;padding:3px}
+.basemaps button{border-radius:999px;padding:7px 12px;font-size:13px;font-weight:600;color:var(--ink-2)}
+.basemaps button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.leaflet-control-attribution{font-size:11px;background:rgba(255,255,255,.85)!important;border-radius:6px 0 0 0}
+.me{width:16px;height:16px;border-radius:50%;background:var(--b);border:3px solid #fff;box-shadow:0 0 0 6px rgba(27,109,209,.2)}
+
+/* ---------- Phone ---------- */
+.grip{display:none}
+@media (max-width: 860px){
+  :root{--header-h:56px}
+  .top{padding-left:16px;padding-right:16px;gap:10px}
+  .brand{gap:10px}
+  .brand img{height:21px}
+  .brand .name{font-size:14px;white-space:normal;max-width:8.5em}
+  .navlink{display:none}
+  .pill{padding:8px 13px;font-size:13px}
+  .pill .long{display:none}
+  .shell{grid-template-columns:1fr}
+  .shell #map{position:absolute;inset:0}
+  .side{position:absolute;left:0;right:0;bottom:0;height:48%;border-right:0;border-radius:20px 20px 0 0;box-shadow:0 -8px 28px rgba(0,0,0,.18);transition:height .28s cubic-bezier(.2,.8,.2,1)}
+  .shell[data-sheet="tall"] .side{height:calc(100% - 10px)}
+  .shell[data-sheet="short"] .side{height:132px}
+  .grip{display:block;width:100%;height:22px;flex:none;position:relative;touch-action:none}
+  .grip::after{content:"";position:absolute;left:50%;top:9px;width:44px;height:5px;margin-left:-22px;border-radius:3px;background:var(--line-2)}
+  .intro{padding:4px 16px 2px;gap:6px}
+  .intro .eyebrow,.intro p{display:none}
+  .intro h1{font-size:22px}
+  .tools{padding:10px 16px}
+  .result-row{padding:4px 16px 6px}
+  .cards{padding:2px 4px 8px}
+  .suggest{margin:8px 16px 20px}
+  .side-foot{padding:14px 16px 24px}
+  .detail{border-radius:20px 20px 0 0}
+  .hero{height:200px}
+  .d-body{padding:18px 16px 28px}
+  .d-head h2{font-size:27px}
+  .reader{left:0}
+  .shell .leaflet-bottom{bottom:48%;transition:bottom .28s cubic-bezier(.2,.8,.2,1)}
+  .shell[data-sheet="short"] .leaflet-bottom{bottom:132px}
+  .shell[data-sheet="tall"] .leaflet-bottom{bottom:0}
+}
+@media (max-width: 380px){ .cta{grid-template-columns:1fr} .card{grid-template-columns:88px 1fr} .thumb{width:88px;height:76px} }
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#" id="home" aria-label="Local Field Laboratories, show all localities">
+    <img src="data:image/png;base64,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" alt="iEarth">
+    <span class="rule" aria-hidden="true"></span>
+    <span class="name">Local Field Laboratories</span>
+  </a>
+  <span class="grow"></span>
+  <nav>
+    <a class="navlink" href="https://www.iearth.no/" target="_blank" rel="noopener">About iEarth</a>
+    <a class="pill" href="https://survey123.arcgis.com/share/d871fd9c8ca445189b7aa0eb8ef54ac0" target="_blank" rel="noopener"><span class="dot" aria-hidden="true"></span>Suggest<span class="long">&nbsp;a locality</span></a>
+  </nav>
+</header>
+
+<main class="shell" id="shell" data-sheet="mid">
+  <aside class="side" id="side" aria-label="Localities">
+    <div class="grip" id="grip" role="button" tabindex="0" aria-label="Resize the list"></div>
+    <div class="list-scroll" id="listScroll">
+      <div class="intro">
+        <span class="eyebrow">iEarth · University of Bergen</span>
+        <h1>Geology on your doorstep</h1>
+        <p>Field localities across Norway, each with a field guide you can read on site. Graded like trails: green, blue and red.</p>
+      </div>
+      <div class="tools" id="tools">
+        <label class="search" for="q">
+          <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="q" type="search" placeholder="Search places and themes" autocomplete="off" enterkeyhint="search">
+          <button class="clear" id="qClear" type="button" aria-label="Clear search" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </label>
+        <div class="seg" id="groupChips" role="group" aria-label="Filter by type"></div>
+        <div class="chips" id="levelChips" role="group" aria-label="Filter by level"></div>
+        <div class="chips" id="journeyChips" role="group" aria-label="Filter by journey"></div>
+      </div>
+      <div class="result-row"><span id="count" class="tnum">Loading localities…</span><button id="reset" type="button" hidden>Clear filters</button></div>
+      <div class="cards" id="cards" role="list"></div>
+      <div class="suggest">
+        <span class="disc" aria-hidden="true">+</span>
+        <div>
+          <b>Know a good locality?</b>
+          <p>Send in the details and photos. It appears here with its own field guide once it has been reviewed.</p>
+          <a class="btn sm" href="https://survey123.arcgis.com/share/d871fd9c8ca445189b7aa0eb8ef54ac0" target="_blank" rel="noopener">Suggest a locality</a>
+        </div>
+      </div>
+      <div class="side-foot">
+        <img src="data:image/png;base64,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" alt="">
+        <span>Local Field Laboratories is an iEarth project at the Department of Earth Science, University of Bergen. Maps © Kartverket.</span>
+      </div>
+    </div>
+    <article class="detail" id="detail" aria-live="polite"></article>
+  </aside>
+  <div id="map" role="region" aria-label="Map of field localities"></div>
+</main>
+
+<section class="reader" id="reader" aria-label="Field guide">
+  <div class="r-bar">
+    <button class="ib" id="rClose" aria-label="Close field guide"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <b id="rTitle">Field guide</b>
+    <span class="grow"></span>
+    <button class="ib" id="rOut" aria-label="Zoom out">−</button>
+    <button class="ib" id="rIn" aria-label="Zoom in">+</button>
+    <a class="ib" id="rOpen" href="#" target="_blank" rel="noopener">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg>PDF</a>
+  </div>
+  <div class="r-pages" id="rPages"></div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+/* ==================================================================
+   SETTINGS
+   Every public ArcGIS feature layer listed here is shown on the map.
+   A record needs a point, a name field and (ideally) a PDF attachment.
+=================================================================== */
+const SOURCES = [
+  // Original localities (read-only view of the LFL Edit Layer); every layer in the service is read
+  "https://services-eu1.arcgis.com/I4gI6NWsuGrIM5YT/arcgis/rest/services/LFL_Viewlayer_(new)/FeatureServer",
+  // Localities submitted through Survey123 and approved
+  "https://services-eu1.arcgis.com/I4gI6NWsuGrIM5YT/arcgis/rest/services/LFL_Localities_Approved/FeatureServer/0"
+];
+const NORWAY = [[57.8, 4.3], [71.3, 31.2]];
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const LEVELS = {
+  "100": { hex: "#1e8a3c", label: "Level 100", word: "Introductory" },
+  "200": { hex: "#1b6dd1", label: "Level 200", word: "Intermediate" },
+  "300": { hex: "#d3222e", label: "Level 300", word: "Advanced" }
+};
+const UNGRADED = { hex: "#6f777c", label: "Ungraded", word: "" };
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === "class") n.className = v;
+    else if (k === "html") n.innerHTML = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat()) if (k != null && k !== false) n.append(k.nodeType ? k : document.createTextNode(k));
+  return n;
+};
+const ICON = {
+  back: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  link: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
+  book: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5zM8 7h7M8 11h7"/></svg>',
+  bus: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 11h14M8 17v3M16 17v3"/><circle cx="8.5" cy="14" r=".6" fill="currentColor"/><circle cx="15.5" cy="14" r=".6" fill="currentColor"/></svg>',
+  pin: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+  clock: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  locate: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>',
+  fit: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+  plus: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  minus: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg>'
+};
+const svg = k => el("span", { html: ICON[k], "aria-hidden": "true", style: "display:inline-flex" });
+const pick = (attrs, ...names) => {
+  const lower = {};
+  for (const [k, v] of Object.entries(attrs)) lower[k.toLowerCase()] = v;
+  for (const n of names) { const v = lower[n.toLowerCase()]; if (v != null && String(v).trim() !== "") return String(v).trim(); }
+  return "";
+};
+const slug = s => s.toLowerCase().replace(/æ/g, "ae").replace(/ø/g, "o").replace(/å/g, "a").normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+const journeyLabel = j => {
+  const k = j.toLowerCase().trim();
+  return ({ "short": "Short journey", "medium": "Medium journey", "long": "Long journey", "walking distance": "Walking distance", "walking": "Walking distance" })[k] || cap(j);
+};
+const fmtCoord = (lat, lon) => `${Math.abs(lat).toFixed(5)}° ${lat >= 0 ? "N" : "S"}, ${Math.abs(lon).toFixed(5)}° ${lon >= 0 ? "E" : "W"}`;
+const isPhone = () => matchMedia("(max-width: 860px)").matches;
+
+let ALL = [], VIEW = [], ACTIVE = null;
+const filters = { q: "", level: null, journey: null, group: null };
+
+/* ==================================================================
+   MAP
+=================================================================== */
+const map = L.map("map", { zoomControl: false, attributionControl: true, minZoom: 4, maxBounds: [[50, -20], [80, 50]] }).fitBounds(NORWAY);
+map.attributionControl.setPrefix(false);
+const kv = layer => L.tileLayer(`https://cache.kartverket.no/v1/wmts/1.0.0/${layer}/default/webmercator/{z}/{y}/{x}.png`, {
+  maxZoom: 18, attribution: '© <a href="https://www.kartverket.no/" target="_blank" rel="noopener">Kartverket</a>'
+});
+const BASE = {
+  Topo: kv("topo"),
+  Grey: kv("topograatone"),
+  Aerial: L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom: 18, attribution: "Imagery © Esri, Maxar, Earthstar Geographics"
+  })
+};
+let baseName = "Topo";
+BASE.Topo.addTo(map);
+
+const Controls = L.Control.extend({
+  options: { position: "topright" },
+  onAdd() {
+    const box = el("div", { class: "mapbtns" });
+    const bm = el("div", { class: "basemaps", role: "group", "aria-label": "Background map" });
+    for (const name of Object.keys(BASE)) {
+      bm.append(el("button", { type: "button", "aria-pressed": String(name === baseName), onclick: () => {
+        map.removeLayer(BASE[baseName]); baseName = name; BASE[name].addTo(map);
+        bm.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.textContent === name)));
+      } }, name));
+    }
+    const zoom = el("div", { class: "mgroup" },
+      el("button", { type: "button", "aria-label": "Zoom in", onclick: () => map.zoomIn() }, svg("plus")),
+      el("button", { type: "button", "aria-label": "Zoom out", onclick: () => map.zoomOut() }, svg("minus")));
+    const locBtn = el("button", { type: "button", "aria-label": "Show my location", title: "Show my location", onclick: () => { locBtn.classList.add("busy"); map.locate({ setView: true, maxZoom: 12 }); } }, svg("locate"));
+    const tools = el("div", { class: "mgroup" },
+      el("button", { type: "button", "aria-label": "Show all localities", title: "Show all localities", onclick: () => fitAll(true) }, svg("fit")),
+      locBtn);
+    map.on("locationfound locationerror", () => locBtn.classList.remove("busy"));
+    box.append(bm, zoom, tools);
+    L.DomEvent.disableClickPropagation(box); L.DomEvent.disableScrollPropagation(box);
+    return box;
+  }
+});
+map.addControl(new Controls());
+let meMarker = null;
+map.on("locationfound", e => {
+  if (meMarker) meMarker.setLatLng(e.latlng);
+  else meMarker = L.marker(e.latlng, { icon: L.divIcon({ className: "", html: '<div class="me"></div>', iconSize: [16, 16] }), interactive: false, zIndexOffset: -100 }).addTo(map);
+});
+
+const pinIcon = (loc, state = "") => L.divIcon({
+  className: "", iconSize: [34, 34], iconAnchor: [17, 17], tooltipAnchor: [0, -14],
+  html: `<div class="pin ${state}"><b style="background:${loc.lv.hex}"></b></div>`
+});
+const cluster = L.markerClusterGroup({
+  showCoverageOnHover: false, spiderfyOnMaxZoom: true, maxClusterRadius: 44,
+  iconCreateFunction: c => {
+    const n = c.getChildCount();
+    return L.divIcon({ className: "", iconSize: n > 9 ? [54, 54] : [44, 44], html: `<div class="cluster ${n > 9 ? "lg" : ""}">${n}</div>` });
+  }
+}).addTo(map);
+
+function fitAll(animate) {
+  const layers = cluster.getLayers();
+  if (!layers.length) { map.fitBounds(NORWAY, { animate }); return; }
+  const sheet = isPhone() ? $("#side").offsetHeight : 0;
+  const opts = { paddingTopLeft: [48, 48], paddingBottomRight: [72, 48 + sheet], maxZoom: 12, animate };
+  const b = L.latLngBounds(layers.map(m => m.getLatLng()));
+  map.fitBounds(b.isValid() && layers.length > 1 ? b : b.pad(.5), opts);
+}
+
+/* ==================================================================
+   DATA
+=================================================================== */
+async function getJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const j = await r.json();
+  if (j.error) throw new Error(j.error.message || "Service error");
+  return j;
+}
+/* A source is either one layer (…/FeatureServer/0) or a whole service (…/FeatureServer) */
+async function expandSource(url) {
+  url = url.replace(/\/+$/, "");
+  if (/\/FeatureServer\/\d+$/i.test(url)) return [url];
+  const svc = await getJSON(`${url}?f=json`);
+  return (svc.layers || []).filter(l => !l.geometryType || /point/i.test(l.geometryType)).map(l => `${url}/${l.id}`);
+}
+async function loadSource(url) {
+  const layers = await expandSource(url);
+  const res = await Promise.allSettled(layers.map(loadLayer));
+  res.filter(r => r.status === "rejected").forEach(r => console.warn("[LFL] a layer failed to load:", r.reason));
+  if (res.length && res.every(r => r.status === "rejected")) throw res[0].reason;
+  return res.flatMap(r => r.status === "fulfilled" ? r.value : []);
+}
+async function loadLayer(url) {
+  let group = "";
+  try { const info = await getJSON(`${url}?f=json`); group = (info.name || "").match(/^(.*?)\s*localit/i)?.[1] || ""; } catch (_) {}
+  const q = await getJSON(`${url}/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=json`);
+  const oidField = q.objectIdFieldName || (q.fields || []).find(f => f.type === "esriFieldTypeOID")?.name || "objectid";
+  const feats = (q.features || []).filter(f => f.geometry && isFinite(f.geometry.x) && isFinite(f.geometry.y));
+  const ids = feats.map(f => f.attributes[oidField]);
+  const att = {};
+  if (ids.length) {
+    try {
+      const a = await getJSON(`${url}/queryAttachments?objectIds=${ids.join(",")}&returnMetadata=true&f=json`);
+      for (const g of a.attachmentGroups || []) att[g.parentObjectId] = g.attachmentInfos || [];
+    } catch (e) {
+      await Promise.all(ids.map(async id => {
+        try { att[id] = (await getJSON(`${url}/${id}/attachments?f=json`)).attachmentInfos || []; } catch (_) { att[id] = []; }
+      }));
+    }
+  }
+  return feats.map((f, i) => normalise(f.attributes, f.geometry, ids[i], att[ids[i]] || [], url, cap(group.trim()))).filter(Boolean);
+}
+/* Works with both the new Survey123 schema and the original LFL layer */
+function normalise(a, g, id, files, url, group) {
+  const status = pick(a, "status");
+  if (status && !/^approved$/i.test(status)) return null;
+  const name = pick(a, "locality", "name", "navn", "title", "site", "lokalitet");
+  if (!name) return null;
+  const lvRaw = pick(a, "level", "level_", "nivå", "grade");
+  const lvNum = (lvRaw.match(/[1-3]00/) || [""])[0];
+  const pdfs = files.filter(x => /pdf/i.test(x.contentType || "") || /\.pdf$/i.test(x.name || ""));
+  const guide = pdfs.find(x => /^LFL_field_guide_/i.test(x.name)) || pdfs[0];
+  const imgs = files.filter(x => /^image\//i.test(x.contentType || "") || /\.(jpe?g|png|webp)$/i.test(x.name || ""));
+  const photo = imgs.find(x => (x.keywords || "") === "photo1") || imgs.find(x => !/route|lidar|map/i.test(`${x.keywords || ""} ${x.name || ""}`));
+  return {
+    key: slug(name) || `loc-${id}`,
+    name, id, src: url, group: pick(a, "category", "type", "kategori") || group,
+    lat: g.y, lon: g.x,
+    level: lvNum || lvRaw,
+    lv: LEVELS[lvNum] || UNGRADED,
+    journey: pick(a, "journey", "journeylength", "journey_length", "journey_len", "access"),
+    themes: pick(a, "themes", "theme", "topics", "tema"),
+    background: pick(a, "background", "description", "beskrivelse", "summary"),
+    practical: pick(a, "practical", "practical_info", "access_info", "directions"),
+    pdf: guide ? `${url}/${id}/attachments/${guide.id}` : null,
+    pdfSize: guide?.size || 0,
+    photo: photo ? `${url}/${id}/attachments/${photo.id}` : null
+  };
+}
+
+/* ==================================================================
+   PDF
+=================================================================== */
+const pdfCache = new Map();
+const loadPdf = url => { if (!pdfCache.has(url)) pdfCache.set(url, pdfjsLib.getDocument({ url }).promise); return pdfCache.get(url); };
+async function renderPage(url, pageNo, cssWidth) {
+  const doc = await loadPdf(url);
+  const page = await doc.getPage(pageNo);
+  const base = page.getViewport({ scale: 1 });
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const vp = page.getViewport({ scale: (cssWidth / base.width) * dpr });
+  const c = document.createElement("canvas");
+  c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+  c.style.width = `${cssWidth}px`;
+  await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+  return c;
+}
+/* Cover image: photo if there is one, else the top of the guide's first page */
+const coverQueue = [];
+let coverBusy = false;
+function fillCover(box, loc, width) {
+  if (loc.photo) { box.style.backgroundImage = `url("${loc.photo}")`; return; }
+  if (!loc.pdf) { box.append(el("div", { class: "ph" }, el("i"))); return; }
+  coverQueue.push([box, loc, width]); pumpCovers();
+}
+async function pumpCovers() {
+  if (coverBusy) return; coverBusy = true;
+  while (coverQueue.length) {
+    const [box, loc, width] = coverQueue.shift();
+    if (!box.isConnected) continue;
+    try { box.prepend(await renderPage(loc.pdf, 1, width)); } catch (_) {}
+  }
+  coverBusy = false;
+}
+
+/* ==================================================================
+   LIST
+=================================================================== */
+function buildChips() {
+  const levelBox = $("#levelChips");
+  const present = new Set(ALL.map(l => l.level));
+  const levels = Object.keys(LEVELS).concat(present.has("") || [...present].some(l => !LEVELS[l]) ? ["other"] : []);
+  levelBox.replaceChildren(...levels.map(v => {
+    const L_ = LEVELS[v] || UNGRADED;
+    const n = ALL.filter(l => v === "other" ? !LEVELS[l.level] : l.level === v).length;
+    return el("button", { type: "button", class: "chip", "aria-pressed": "false", disabled: n === 0, "data-v": v,
+      title: L_.word || null,
+      onclick: e => toggle("level", v, levelBox, e.currentTarget) },
+      el("span", { class: "d", style: `background:${L_.hex}` }), L_.label, el("span", { class: "n tnum" }, n));
+  }));
+  const jBox = $("#journeyChips");
+  const journeys = [...new Set(ALL.map(l => l.journey).filter(Boolean))].sort();
+  jBox.replaceChildren(...journeys.map(v => el("button", { type: "button", class: "chip", "aria-pressed": "false", "data-v": v,
+    onclick: e => toggle("journey", v, jBox, e.currentTarget) }, svg("clock"), journeyLabel(v))));
+  jBox.hidden = journeys.length < 2;
+  const gBox = $("#groupChips");
+  const groups = [...new Set(ALL.map(l => l.group).filter(Boolean))].sort();
+  const mk = (v, label) => el("button", { type: "button", "aria-pressed": String(filters.group === v), onclick: () => {
+    filters.group = v; gBox.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === String(v))));
+    applyFilters(true);
+  }, "data-v": String(v) }, label);
+  gBox.replaceChildren(mk(null, "All"), ...groups.map(g => mk(g, g)));
+  gBox.hidden = groups.length < 2;
+}
+function toggle(key, v, box, btn) {
+  filters[key] = filters[key] === v ? null : v;
+  box.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(c === btn && filters[key] === v)));
+  applyFilters(true);
+}
+function applyFilters(refit) {
+  const q = filters.q.toLowerCase();
+  VIEW = ALL.filter(l =>
+    (!q || `${l.name} ${l.themes} ${l.journey} ${l.group}`.toLowerCase().includes(q)) &&
+    (!filters.level || (filters.level === "other" ? !LEVELS[l.level] : l.level === filters.level)) &&
+    (!filters.journey || l.journey === filters.journey) &&
+    (!filters.group || l.group === filters.group));
+  $("#reset").hidden = !(filters.q || filters.level || filters.journey || filters.group);
+  renderList(); renderMarkers();
+  if (refit && VIEW.length) fitAll(true);
+}
+function renderList() {
+  const box = $("#cards");
+  $("#count").textContent = `${VIEW.length} of ${ALL.length} ${ALL.length === 1 ? "locality" : "localities"}`;
+  if (!VIEW.length) {
+    box.replaceChildren(el("div", { class: "note" }, ALL.length ? "No localities match these filters." : "No localities have been published yet."));
+    return;
+  }
+  box.replaceChildren(...VIEW.map(loc => {
+    const thumb = el("div", { class: "thumb", "aria-hidden": "true" });
+    const card = el("button", { type: "button", class: "card" + (ACTIVE === loc ? " is-active" : ""), role: "listitem", "data-key": loc.key,
+      onclick: () => select(loc, true),
+      onmouseenter: () => hot(loc, true), onmouseleave: () => hot(loc, false) },
+      thumb,
+      el("div", { class: "card-body" },
+        el("h3", {}, loc.name),
+        el("div", { class: "meta" },
+          el("span", { class: "grade" }, el("i", { style: `background:${loc.lv.hex}` }), loc.lv.label),
+          loc.journey ? el("span", {}, svg("clock"), journeyLabel(loc.journey)) : null,
+          loc.group ? el("span", {}, loc.group) : null),
+        loc.themes ? el("div", { class: "themes" }, loc.themes) : null));
+    fillCover(thumb, loc, 104);
+    return card;
+  }));
+}
+function skeleton() {
+  $("#cards").replaceChildren(...[0, 1, 2, 3].map(() => el("div", { class: "card skeleton", "aria-hidden": "true" },
+    el("div", { class: "thumb" }),
+    el("div", { class: "card-body" }, el("div", { class: "s", style: "width:70%;height:16px" }), el("div", { class: "s", style: "width:45%" }), el("div", { class: "s", style: "width:85%" })))));
+}
+function hot(loc, on) {
+  if (loc.marker && ACTIVE !== loc) loc.marker.setIcon(pinIcon(loc, on ? "hot" : ""));
+}
+function renderMarkers() {
+  cluster.clearLayers();
+  cluster.addLayers(VIEW.map(loc => {
+    loc.marker = L.marker([loc.lat, loc.lon], { icon: pinIcon(loc, ACTIVE === loc ? "on" : ""), title: loc.name, keyboard: true, riseOnHover: true })
+      .bindTooltip(loc.name, { className: "lfl-tip", direction: "top" })
+      .on("click", () => select(loc, false))
+      .on("mouseover", () => document.querySelector(`.card[data-key="${loc.key}"]`)?.classList.add("hot"))
+      .on("mouseout", () => document.querySelector(`.card[data-key="${loc.key}"]`)?.classList.remove("hot"));
+    return loc.marker;
+  }));
+}
+
+/* ==================================================================
+   DETAIL
+=================================================================== */
+function select(loc, fromList) {
+  const prev = ACTIVE; ACTIVE = loc;
+  if (prev && prev.marker) prev.marker.setIcon(pinIcon(prev, ""));
+  document.querySelectorAll(".card").forEach(c => c.classList.toggle("is-active", c.dataset.key === loc.key));
+  if (loc.marker) {
+    cluster.zoomToShowLayer(loc.marker, () => {
+      loc.marker.setIcon(pinIcon(loc, "on"));
+      if (!fromList) return;
+      const z = Math.max(map.getZoom(), 12);
+      if (isPhone()) map.setView([loc.lat, loc.lon], z);
+      else map.flyTo([loc.lat, loc.lon], z, { duration: .7 });
+    });
+  }
+  try { if (location.hash.slice(1) !== loc.key) history.replaceState(null, "", `#${loc.key}`); } catch (_) {}
+  renderDetail(loc);
+}
+function renderDetail(loc) {
+  const d = $("#detail");
+  const sideW = $("#side").clientWidth || 440;
+  const hero = el("div", { class: "hero" });
+  fillCover(hero, loc, sideW);
+  const shareBtn = el("button", { type: "button", class: "fab icon", "aria-label": "Copy link to this locality", title: "Copy link", onclick: () => copy(location.href.split("#")[0] + "#" + loc.key, shareBtn) }, svg("link"));
+  hero.append(el("div", { class: "hero-bar" },
+    el("button", { type: "button", class: "fab", onclick: closeDetail }, svg("back"), "All localities"),
+    shareBtn));
+
+  let guide = null;
+  if (loc.pdf) {
+    const pg = el("div", { class: "pg" });
+    const info = el("span", {}, "PDF field guide");
+    guide = el("div", { class: "guide", role: "button", tabindex: "0", "aria-label": "Read the field guide",
+      onclick: () => openReader(loc), onkeydown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openReader(loc); } } },
+      pg, el("div", { class: "gt" }, el("b", {}, "Field guide"), info, el("u", {}, "Read it here")));
+    renderPage(loc.pdf, 1, 120).then(c => pg.append(c)).catch(() => {});
+    loadPdf(loc.pdf).then(doc => {
+      const mb = loc.pdfSize ? ` · ${(loc.pdfSize / 1048576).toFixed(1)} MB` : "";
+      info.textContent = `${doc.numPages} ${doc.numPages === 1 ? "page" : "pages"} · PDF${mb}`;
+    }).catch(() => { info.textContent = "Could not be loaded"; });
+  }
+  const coordBtn = el("button", { type: "button", onclick: () => copy(`${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}`, coordBtn, "Copied") }, "Copy");
+
+  d.replaceChildren(hero, el("div", { class: "d-body" },
+    el("div", { class: "d-head" },
+      el("div", { class: "row" },
+        el("span", { class: "tag" }, el("i", { style: `background:${loc.lv.hex}` }), loc.lv.label, loc.lv.word ? el("span", { style: "font-weight:500;color:var(--ink-3)" }, `· ${loc.lv.word}`) : null),
+        loc.journey ? el("span", { class: "tag" }, svg("clock"), journeyLabel(loc.journey)) : null,
+        loc.group ? el("span", { class: "tag" }, loc.group) : null),
+      el("h2", {}, loc.name),
+      el("span", { class: "coords tnum" }, svg("pin"), fmtCoord(loc.lat, loc.lon), coordBtn)),
+    el("div", { class: "cta" },
+      el("button", { type: "button", class: "btn primary", disabled: !loc.pdf, onclick: () => openReader(loc) }, svg("book"), loc.pdf ? "Read the field guide" : "Field guide coming soon"),
+      el("a", { class: "btn", href: `https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lon}&travelmode=transit`, target: "_blank", rel: "noopener" }, svg("bus"), "Public transport"),
+      el("a", { class: "btn", href: `https://norgeskart.no/#!?project=norgeskart&layers=1002&zoom=14&lat=${loc.lat}&lon=${loc.lon}&markerLat=${loc.lat}&markerLon=${loc.lon}&sok=${loc.lat},${loc.lon}`, target: "_blank", rel: "noopener" }, svg("pin"), "Norgeskart")),
+    guide,
+    loc.themes ? el("div", { class: "section" }, el("h4", {}, "Themes"),
+      el("div", { class: "theme-tags" }, ...loc.themes.split(/[,;]\s*/).map(t => t.trim().replace(/\.$/, "")).filter(Boolean).map(t => el("span", {}, cap(t))))) : null,
+    loc.background ? el("div", { class: "section" }, el("h4", {}, "About the locality"), el("p", {}, loc.background)) : null,
+    loc.practical ? el("div", { class: "section" }, el("h4", {}, "Getting there"), el("p", {}, loc.practical)) : null
+  ));
+  d.scrollTop = 0;
+  d.classList.add("open");
+  if (isPhone()) setSheet("tall");
+}
+function closeDetail() {
+  $("#detail").classList.remove("open");
+  closeReader();
+  if (ACTIVE && ACTIVE.marker) ACTIVE.marker.setIcon(pinIcon(ACTIVE, ""));
+  ACTIVE = null;
+  document.querySelectorAll(".card").forEach(c => c.classList.remove("is-active"));
+  try { history.replaceState(null, "", location.pathname + location.search); } catch (_) {}
+  if (isPhone()) setSheet("mid");
+}
+async function copy(text, btn, done = null) {
+  const old = btn.innerHTML;
+  try { await navigator.clipboard.writeText(text); btn.textContent = done || "✓"; }
+  catch (_) { btn.textContent = done ? "Copy failed" : "!"; }
+  setTimeout(() => { btn.innerHTML = old; }, 1600);
+}
+
+/* ==================================================================
+   READER
+=================================================================== */
+let readerZoom = 1, readerLoc = null;
+async function openReader(loc) {
+  if (!loc.pdf) return;
+  readerLoc = loc; readerZoom = 1;
+  $("#rTitle").textContent = loc.name;
+  $("#rOpen").href = loc.pdf;
+  $("#reader").classList.add("open");
+  await drawReader();
+}
+async function drawReader() {
+  const box = $("#rPages"), loc = readerLoc;
+  box.replaceChildren(el("div", { class: "r-status" }, "Opening the field guide…"));
+  try {
+    const doc = await loadPdf(loc.pdf);
+    const w = Math.min(box.clientWidth - 32, 880) * readerZoom;
+    const pages = [];
+    for (let i = 1; i <= doc.numPages; i++) {
+      pages.push(await renderPage(loc.pdf, i, w));
+      if (readerLoc !== loc) return;
+      if (i === 1) box.replaceChildren(pages[0]);
+      else box.append(pages[i - 1]);
+    }
+  } catch (e) {
+    box.replaceChildren(el("div", { class: "r-status" }, "The field guide could not be shown here. Use the PDF button to open it."));
+  }
+}
+function closeReader() { $("#reader").classList.remove("open"); readerLoc = null; }
+$("#rClose").onclick = closeReader;
+$("#rIn").onclick = () => { readerZoom = Math.min(readerZoom + .25, 2.5); drawReader(); };
+$("#rOut").onclick = () => { readerZoom = Math.max(readerZoom - .25, .5); drawReader(); };
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if ($("#reader").classList.contains("open")) closeReader(); else if (ACTIVE) closeDetail();
+});
+
+/* ==================================================================
+   PHONE SHEET
+=================================================================== */
+function setSheet(state) {
+  $("#shell").dataset.sheet = state;
+  setTimeout(() => map.invalidateSize(), 300);
+}
+const SHEETS = ["short", "mid", "tall"];
+const grip = $("#grip");
+grip.onclick = () => { const i = SHEETS.indexOf($("#shell").dataset.sheet); setSheet(SHEETS[(i + 1) % 3]); };
+grip.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); grip.click(); } };
+let touchY = null;
+grip.addEventListener("touchstart", e => { touchY = e.touches[0].clientY; }, { passive: true });
+grip.addEventListener("touchend", e => {
+  if (touchY == null) return;
+  const dy = e.changedTouches[0].clientY - touchY; touchY = null;
+  const i = SHEETS.indexOf($("#shell").dataset.sheet);
+  if (dy < -24) setSheet(SHEETS[Math.min(i + 1, 2)]);
+  else if (dy > 24) setSheet(SHEETS[Math.max(i - 1, 0)]);
+});
+
+/* ==================================================================
+   WIRING
+=================================================================== */
+$("#home").onclick = e => { e.preventDefault(); closeDetail(); fitAll(true); };
+const qInput = $("#q");
+qInput.addEventListener("input", () => { filters.q = qInput.value.trim(); $("#qClear").hidden = !qInput.value; applyFilters(false); });
+qInput.addEventListener("keydown", e => { if (e.key === "Enter" && VIEW.length === 1) select(VIEW[0], true); });
+$("#qClear").onclick = () => { qInput.value = ""; qInput.dispatchEvent(new Event("input")); qInput.focus(); };
+$("#reset").onclick = () => {
+  filters.q = ""; filters.level = null; filters.journey = null; filters.group = null; qInput.value = ""; $("#qClear").hidden = true;
+  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", "false"));
+  document.querySelectorAll("#groupChips button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === "null")));
+  applyFilters(true);
+};
+$("#listScroll").addEventListener("scroll", e => $("#tools").classList.toggle("stuck", e.target.scrollTop > 120), { passive: true });
+window.addEventListener("resize", () => map.invalidateSize());
+
+async function start() {
+  skeleton();
+  $("#count").textContent = "Loading localities…";
+  const results = await Promise.allSettled(SOURCES.map(loadSource));
+  results.filter(r => r.status === "rejected").forEach(r => console.warn("[LFL] a source failed to load:", r.reason));
+  const seen = new Set();
+  ALL = results.flatMap(r => r.status === "fulfilled" ? r.value : [])
+    .filter(l => { const k = l.key; if (seen.has(k)) { l.key = `${k}-${l.id}`; } seen.add(l.key); return true; })
+    .sort((a, b) => a.name.localeCompare(b.name, "nb"));
+  if (!ALL.length && results.some(r => r.status === "rejected")) {
+    $("#count").textContent = "";
+    $("#cards").replaceChildren(el("div", { class: "note" },
+      el("div", {}, "The localities could not be loaded. Check your connection and try again."),
+      el("button", { type: "button", class: "btn sm", onclick: start }, "Try again")));
+    return;
+  }
+  buildChips(); applyFilters(false); fitAll(false);
+  const hit = ALL.find(l => l.key === decodeURIComponent(location.hash.slice(1)));
+  if (hit) select(hit, true);
+}
+start();
+</script>
+</body>
+</html>
