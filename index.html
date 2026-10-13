@@ -106,6 +106,12 @@ h1,h2,h3{font-family:var(--display);letter-spacing:-.02em;margin:0;text-wrap:bal
 .card.is-active::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:3px;background:var(--ink)}
 .thumb{width:104px;height:88px;border-radius:10px;background:var(--mist-2) center/cover no-repeat;position:relative;overflow:hidden}
 .thumb canvas{width:100%!important;height:100%!important;object-fit:cover;object-position:top;display:block}
+.cimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .35s ease}
+.loaded .cimg{opacity:1}
+.texts{display:flex;flex-direction:column;gap:22px}
+.texts.skeleton .s{background:linear-gradient(90deg,var(--mist) 0,var(--mist-2) 40%,var(--mist) 80%);background-size:300% 100%;animation:sh 1.4s ease infinite;border-radius:6px}
+.map-suggest{position:absolute;left:16px;bottom:28px;z-index:1000;box-shadow:var(--shadow-2)}
+@media (max-width:860px){.map-suggest{display:none}}
 .thumb .ph{position:absolute;inset:0;display:grid;place-items:center}
 .thumb .ph i{width:26px;height:26px;border-radius:50%;background:var(--line-2)}
 .card-body{min-width:0;display:flex;flex-direction:column;gap:5px;padding-top:1px}
@@ -290,7 +296,9 @@ h1,h2,h3{font-family:var(--display);letter-spacing:-.02em;margin:0;text-wrap:bal
     </div>
     <article class="detail" id="detail" aria-live="polite"></article>
   </aside>
-  <div id="map" role="region" aria-label="Map of field localities"></div>
+  <div id="map" role="region" aria-label="Map of field localities">
+    <a class="pill map-suggest" href="https://survey123.arcgis.com/share/d871fd9c8ca445189b7aa0eb8ef54ac0" target="_blank" rel="noopener"><span class="dot" aria-hidden="true"></span>Suggest a locality</a>
+  </div>
 </main>
 
 <section class="reader" id="reader" aria-label="Field guide">
@@ -309,6 +317,116 @@ h1,h2,h3{font-family:var(--display);letter-spacing:-.02em;margin:0;text-wrap:bal
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>/* Shared by the app (runtime fallback) and the one-off cover/text baking step.
+   Works on the LFL field-guide template: facts and text in the left column, photos in the right. */
+window.LFLmine = (() => {
+  const isWhite = (r, g, b) => r > 236 && g > 236 && b > 236;
+  const isDark = (r, g, b) => r < 18 && g < 18 && b < 18;
+
+  /* Find the first photo in the right-hand column of a rendered page canvas */
+  function findTopPhoto(canvas) {
+    const W = canvas.width, H = canvas.height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const x0 = Math.round(W * 0.46), x1 = Math.round(W * 0.985);
+    const data = ctx.getImageData(x0, 0, x1 - x0, H).data, cw = x1 - x0;
+    const rowIsPhoto = new Array(H).fill(false);
+    for (let y = Math.round(H * 0.03); y < Math.round(H * 0.75); y++) {
+      let white = 0, dark = 0, n = 0;
+      for (let x = 0; x < cw; x += 2) {
+        const i = (y * cw + x) * 4, r = data[i], g = data[i + 1], b = data[i + 2];
+        if (isWhite(r, g, b)) white++; else if (isDark(r, g, b)) dark++;
+        n++;
+      }
+      rowIsPhoto[y] = white / n < 0.35 && dark / n < 0.7;
+    }
+    const minRun = Math.round(H * 0.05);
+    let run = null;
+    for (let y = 0; y < H; y++) {
+      if (!rowIsPhoto[y]) continue;
+      let e = y; while (e < H && rowIsPhoto[e]) e++;
+      if (e - y >= minRun) { run = [y, e]; break; }
+      y = e;
+    }
+    if (!run) return null;
+    const px = (x, y) => { const i = (y * cw + x) * 4; return [data[i], data[i + 1], data[i + 2]]; };
+    const lum = (x, y) => { const i = (y * cw + x) * 4; return 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2]; };
+    // horizontal extent: columns that are photo-like in most rows of the run
+    const colOk = [];
+    for (let x = 0; x < cw; x++) {
+      let ok = 0, n = 0;
+      for (let y = run[0]; y < run[1]; y += 3) { const [r, g, b] = px(x, y); if (!isWhite(r, g, b) && !isDark(r, g, b)) ok++; n++; }
+      colOk.push(ok / n > 0.6);
+    }
+    let mid = Math.round(cw * 0.6);
+    if (!colOk[mid]) { const f = colOk.indexOf(true); if (f < 0) return null; mid = f; }
+    let left = mid, right = mid;
+    while (left > 0 && colOk[left - 1]) left--;
+    while (right < cw - 1 && colOk[right + 1]) right++;
+    if (right - left < cw * 0.3) return null;
+    // vertical: split where two photos meet with no gap (a row where almost every pixel jumps)
+    let y0 = run[0], y1 = run[1];
+    for (let y = run[0] + minRun; y < run[1] - 2; y++) {
+      let jump = 0, n = 0;
+      for (let x = left; x <= right; x += 2) { if (Math.abs(lum(x, y + 1) - lum(x, y)) > 38) jump++; n++; }
+      if (jump / n > 0.55) { y1 = y + 1; break; }
+    }
+    const pad = 3;
+    return { x: x0 + left + pad, y: y0 + pad, w: right - left - 2 * pad, h: y1 - y0 - 2 * pad };
+  }
+
+  /* Render page 1 and return a cropped cover canvas (or null) */
+  async function cover(doc, targetW = 720) {
+    const page = await doc.getPage(1);
+    const base = page.getViewport({ scale: 1 });
+    // render so that the right column is about targetW pixels wide
+    const scale = Math.min(4, targetW / (base.width * 0.5));
+    const vp = page.getViewport({ scale });
+    const c = document.createElement("canvas");
+    c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+    await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+    const r = findTopPhoto(c);
+    if (!r) return null;
+    if (r.h > r.w) { r.y += Math.round((r.h - r.w) / 2); r.h = r.w; }   // no taller than square
+    const out = document.createElement("canvas");
+    out.width = r.w; out.height = r.h;
+    out.getContext("2d").drawImage(c, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+    return out;
+  }
+
+  /* Pull "Background information" and "Practical information" from page 1's left column */
+  async function text(doc) {
+    const page = await doc.getPage(1);
+    const W = page.getViewport({ scale: 1 }).width;
+    const tc = await page.getTextContent();
+    const items = tc.items.filter(i => i.str && i.str.trim() && i.transform[4] < W * 0.47)
+      .map(i => ({ s: i.str, x: i.transform[4], y: i.transform[5], h: i.height || 8 }));
+    items.sort((a, b) => b.y - a.y || a.x - b.x);
+    const lines = [];
+    for (const i of items) {
+      const L = lines[lines.length - 1];
+      if (L && Math.abs(L.y - i.y) < 2) L.s += (/\s$/.test(L.s) || /^\s/.test(i.s) ? "" : " ") + i.s;
+      else lines.push({ y: i.y, h: i.h, s: i.s });
+    }
+    // join lines into paragraphs; a gap bigger than ~1.6 line heights starts a new paragraph
+    let out = "", prev = null;
+    for (const l of lines) {
+      const s = l.s.replace(/\s+/g, " ").trim();
+      if (!s) continue;
+      if (prev) out += (prev.y - l.y > prev.h * 1.9) ? "\n\n" : (/-$/.test(out) ? "" : " ");
+      out += s; prev = l;
+    }
+    const grab = (start, ends) => {
+      const m = out.match(new RegExp(`${start}\\s*:?\\s*([\\s\\S]*?)(?=${ends.join("|")}|$)`, "i"));
+      return m ? m[1].replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim() : "";
+    };
+    return {
+      background: grab("Background information", ["Practical information", "References"]),
+      practical: grab("Practical information", ["References", "Tasks"])
+    };
+  }
+  return { cover, text, findTopPhoto };
+})();
+</script>
 <script>
 /* ==================================================================
    SETTINGS
@@ -382,6 +500,8 @@ const filters = { q: "", level: null, journey: null, group: null };
 =================================================================== */
 const map = L.map("map", { zoomControl: false, attributionControl: true, minZoom: 4, maxBounds: [[50, -20], [80, 50]] }).fitBounds(NORWAY);
 map.attributionControl.setPrefix(false);
+L.DomEvent.disableClickPropagation(document.querySelector(".map-suggest"));
+L.DomEvent.disableScrollPropagation(document.querySelector(".map-suggest"));
 const kv = layer => L.tileLayer(`https://cache.kartverket.no/v1/wmts/1.0.0/${layer}/default/webmercator/{z}/{y}/{x}.png`, {
   maxZoom: 18, attribution: '© <a href="https://www.kartverket.no/" target="_blank" rel="noopener">Kartverket</a>'
 });
@@ -464,8 +584,16 @@ async function expandSource(url) {
   const svc = await getJSON(`${url}?f=json`);
   return (svc.layers || []).filter(l => !l.geometryType || /point/i.test(l.geometryType)).map(l => `${url}/${l.id}`);
 }
+const svcSlug = url => (url.match(/\/services\/([^/]+)\/FeatureServer/i)?.[1] || "src").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+/* Pre-made covers and texts live next to the page in covers/<service>.json (+ one .jpg per guide) */
+const manifests = {};
+async function manifest(url) {
+  const s = svcSlug(url);
+  if (!manifests[s]) manifests[s] = fetch(`covers/${s}.json`, { cache: "no-cache" }).then(r => r.ok ? r.json() : {}).catch(() => ({}));
+  return manifests[s];
+}
 async function loadSource(url) {
-  const layers = await expandSource(url);
+  const [layers] = await Promise.all([expandSource(url), manifest(url)]);
   const res = await Promise.allSettled(layers.map(loadLayer));
   res.filter(r => r.status === "rejected").forEach(r => console.warn("[LFL] a layer failed to load:", r.reason));
   if (res.length && res.every(r => r.status === "rejected")) throw res[0].reason;
@@ -489,10 +617,11 @@ async function loadLayer(url) {
       }));
     }
   }
-  return feats.map((f, i) => normalise(f.attributes, f.geometry, ids[i], att[ids[i]] || [], url, cap(group.trim()))).filter(Boolean);
+  const man = await manifest(url);
+  return feats.map((f, i) => normalise(f.attributes, f.geometry, ids[i], att[ids[i]] || [], url, cap(group.trim()), man)).filter(Boolean);
 }
 /* Works with both the new Survey123 schema and the original LFL layer */
-function normalise(a, g, id, files, url, group) {
+function normalise(a, g, id, files, url, group, man = {}) {
   const status = pick(a, "status");
   if (status && !/^approved$/i.test(status)) return null;
   const name = pick(a, "locality", "name", "navn", "title", "site", "lokalitet");
@@ -503,6 +632,8 @@ function normalise(a, g, id, files, url, group) {
   const guide = pdfs.find(x => /^LFL_field_guide_/i.test(x.name)) || pdfs[0];
   const imgs = files.filter(x => /^image\//i.test(x.contentType || "") || /\.(jpe?g|png|webp)$/i.test(x.name || ""));
   const photo = imgs.find(x => (x.keywords || "") === "photo1") || imgs.find(x => !/route|lidar|map/i.test(`${x.keywords || ""} ${x.name || ""}`));
+  const ckey = guide ? `${svcSlug(url)}-${url.match(/(\d+)$/)[1]}-${id}-${guide.id}` : null;
+  const baked = ckey && man[ckey];
   return {
     key: slug(name) || `loc-${id}`,
     name, id, src: url, group: pick(a, "category", "type", "kategori") || group,
@@ -511,8 +642,9 @@ function normalise(a, g, id, files, url, group) {
     lv: LEVELS[lvNum] || UNGRADED,
     journey: pick(a, "journey", "journeylength", "journey_length", "journey_len", "access"),
     themes: pick(a, "themes", "theme", "topics", "tema"),
-    background: pick(a, "background", "description", "beskrivelse", "summary"),
-    practical: pick(a, "practical", "practical_info", "access_info", "directions"),
+    background: pick(a, "background", "description", "beskrivelse", "summary") || baked?.background || "",
+    practical: pick(a, "practical", "practical_info", "access_info", "directions") || baked?.practical || "",
+    cover: baked ? `covers/${ckey}.jpg` : null,
     pdf: guide ? `${url}/${id}/attachments/${guide.id}` : null,
     pdfSize: guide?.size || 0,
     photo: photo ? `${url}/${id}/attachments/${photo.id}` : null
@@ -536,20 +668,39 @@ async function renderPage(url, pageNo, cssWidth) {
   await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
   return c;
 }
-/* Cover image: photo if there is one, else the top of the guide's first page */
+/* Cover image, in order of preference: the submitted photo, a pre-made cover,
+   or (for guides added since) the first photo cropped out of the PDF on the fly. */
 const coverQueue = [];
 let coverBusy = false;
-function fillCover(box, loc, width) {
-  if (loc.photo) { box.style.backgroundImage = `url("${loc.photo}")`; return; }
+const liveCovers = new Map();
+const coverObserver = "IntersectionObserver" in window ? new IntersectionObserver(entries => {
+  for (const e of entries) if (e.isIntersecting) { coverObserver.unobserve(e.target); coverQueue.push(e.target); pumpCovers(); }
+}, { rootMargin: "200px" }) : null;
+function fillCover(box, loc) {
+  const img = loc.photo || loc.cover;
+  if (img) {
+    const im = new Image();
+    im.decoding = "async"; im.alt = ""; im.className = "cimg";
+    im.onload = () => box.classList.add("loaded");
+    im.onerror = () => { im.remove(); if (loc.pdf && !loc.photo) { loc.cover = null; fillCover(box, loc); } };
+    im.src = img; box.prepend(im);
+    return;
+  }
   if (!loc.pdf) { box.append(el("div", { class: "ph" }, el("i"))); return; }
-  coverQueue.push([box, loc, width]); pumpCovers();
+  box._loc = loc;
+  if (coverObserver) coverObserver.observe(box); else { coverQueue.push(box); pumpCovers(); }
 }
 async function pumpCovers() {
   if (coverBusy) return; coverBusy = true;
   while (coverQueue.length) {
-    const [box, loc, width] = coverQueue.shift();
+    const box = coverQueue.shift(), loc = box._loc;
     if (!box.isConnected) continue;
-    try { box.prepend(await renderPage(loc.pdf, 1, width)); } catch (_) {}
+    try {
+      if (!liveCovers.has(loc.pdf)) liveCovers.set(loc.pdf, loadPdf(loc.pdf).then(doc => LFLmine.cover(doc, 560)).then(c => c ? c.toDataURL("image/jpeg", .82) : null));
+      const url = await liveCovers.get(loc.pdf);
+      if (url) { const im = new Image(); im.className = "cimg"; im.alt = ""; im.src = url; box.prepend(im); box.classList.add("loaded"); }
+      else box.prepend(await renderPage(loc.pdf, 1, box.clientWidth || 120));
+    } catch (_) {}
   }
   coverBusy = false;
 }
@@ -619,7 +770,7 @@ function renderList() {
           loc.journey ? el("span", {}, svg("clock"), journeyLabel(loc.journey)) : null,
           loc.group ? el("span", {}, loc.group) : null),
         loc.themes ? el("div", { class: "themes" }, loc.themes) : null));
-    fillCover(thumb, loc, 104);
+    fillCover(thumb, loc);
     return card;
   }));
 }
@@ -666,12 +817,13 @@ function renderDetail(loc) {
   const d = $("#detail");
   const sideW = $("#side").clientWidth || 440;
   const hero = el("div", { class: "hero" });
-  fillCover(hero, loc, sideW);
+  fillCover(hero, loc);
   const shareBtn = el("button", { type: "button", class: "fab icon", "aria-label": "Copy link to this locality", title: "Copy link", onclick: () => copy(location.href.split("#")[0] + "#" + loc.key, shareBtn) }, svg("link"));
   hero.append(el("div", { class: "hero-bar" },
     el("button", { type: "button", class: "fab", onclick: closeDetail }, svg("back"), "All localities"),
     shareBtn));
 
+  const texts = el("div", { class: "texts" });
   let guide = null;
   if (loc.pdf) {
     const pg = el("div", { class: "pg" });
@@ -697,17 +849,30 @@ function renderDetail(loc) {
       el("span", { class: "coords tnum" }, svg("pin"), fmtCoord(loc.lat, loc.lon), coordBtn)),
     el("div", { class: "cta" },
       el("button", { type: "button", class: "btn primary", disabled: !loc.pdf, onclick: () => openReader(loc) }, svg("book"), loc.pdf ? "Read the field guide" : "Field guide coming soon"),
-      el("a", { class: "btn", href: `https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lon}&travelmode=transit`, target: "_blank", rel: "noopener" }, svg("bus"), "Public transport"),
+      el("a", { class: "btn", href: `https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lon}&travelmode=transit`, target: "_blank", rel: "noopener" }, svg("bus"), "Plan your route"),
       el("a", { class: "btn", href: `https://norgeskart.no/#!?project=norgeskart&layers=1002&zoom=14&lat=${loc.lat}&lon=${loc.lon}&markerLat=${loc.lat}&markerLon=${loc.lon}&sok=${loc.lat},${loc.lon}`, target: "_blank", rel: "noopener" }, svg("pin"), "Norgeskart")),
     guide,
     loc.themes ? el("div", { class: "section" }, el("h4", {}, "Themes"),
       el("div", { class: "theme-tags" }, ...loc.themes.split(/[,;]\s*/).map(t => t.trim().replace(/\.$/, "")).filter(Boolean).map(t => el("span", {}, cap(t))))) : null,
-    loc.background ? el("div", { class: "section" }, el("h4", {}, "About the locality"), el("p", {}, loc.background)) : null,
-    loc.practical ? el("div", { class: "section" }, el("h4", {}, "Getting there"), el("p", {}, loc.practical)) : null
+    texts
   ));
+  fillTexts(texts, loc);
+  if (!loc.background && !loc.practical && loc.pdf) {
+    texts.append(el("div", { class: "section" }, el("div", { class: "s", style: "height:12px;width:40%;margin-bottom:10px" }), el("div", { class: "s", style: "height:10px;width:90%" })));
+    texts.classList.add("skeleton");
+    loadPdf(loc.pdf).then(doc => LFLmine.text(doc)).then(t => {
+      loc.background = t.background; loc.practical = t.practical;
+      texts.classList.remove("skeleton"); fillTexts(texts, loc);
+    }).catch(() => { texts.classList.remove("skeleton"); texts.replaceChildren(); });
+  }
   d.scrollTop = 0;
   d.classList.add("open");
   if (isPhone()) setSheet("tall");
+}
+function fillTexts(box, loc) {
+  box.replaceChildren(
+    loc.background ? el("div", { class: "section" }, el("h4", {}, "About the locality"), el("p", {}, loc.background)) : null,
+    loc.practical ? el("div", { class: "section" }, el("h4", {}, "Getting there"), el("p", {}, loc.practical)) : null);
 }
 function closeDetail() {
   $("#detail").classList.remove("open");
@@ -806,10 +971,17 @@ async function start() {
   $("#count").textContent = "Loading localities…";
   const results = await Promise.allSettled(SOURCES.map(loadSource));
   results.filter(r => r.status === "rejected").forEach(r => console.warn("[LFL] a source failed to load:", r.reason));
-  const seen = new Set();
-  ALL = results.flatMap(r => r.status === "fulfilled" ? r.value : [])
-    .filter(l => { const k = l.key; if (seen.has(k)) { l.key = `${k}-${l.id}`; } seen.add(l.key); return true; })
-    .sort((a, b) => a.name.localeCompare(b.name, "nb"));
+  /* The same locality can exist in two layers (e.g. re-submitted through Survey123): merge by name */
+  const byKey = new Map();
+  for (const l of results.flatMap(r => r.status === "fulfilled" ? r.value : [])) {
+    const o = byKey.get(l.key);
+    if (!o) { byKey.set(l.key, l); continue; }
+    const [a, b] = (l.photo || l.background.length > o.background.length) ? [l, o] : [o, l];
+    for (const k of ["group", "journey", "themes", "background", "practical", "pdf", "photo", "cover"]) if (!a[k] && b[k]) a[k] = b[k];
+    if (a.lv === UNGRADED && b.lv !== UNGRADED) { a.lv = b.lv; a.level = b.level; }
+    byKey.set(l.key, a);
+  }
+  ALL = [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name, "nb"));
   if (!ALL.length && results.some(r => r.status === "rejected")) {
     $("#count").textContent = "";
     $("#cards").replaceChildren(el("div", { class: "note" },
