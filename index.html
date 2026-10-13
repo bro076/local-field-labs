@@ -625,6 +625,8 @@ async function loadLayer(url) {
   const man = await manifest(url);
   return feats.map((f, i) => normalise(f.attributes, f.geometry, ids[i], att[ids[i]] || [], url, cap(group.trim()), man)).filter(Boolean);
 }
+/* Survey123 choice values look like "structural_geology,glacial_geomorphology"; "Other" answers are free text */
+const themeText = (v, other = "") => v ? v.split(",").map(x => x.trim()).filter(Boolean).map(x => /^other$/i.test(x) ? other : cap(x.replace(/_/g, " "))).filter(Boolean).join(", ") : "";
 /* Works with both the new Survey123 schema and the original LFL layer */
 function normalise(a, g, id, files, url, group, man = {}) {
   const status = pick(a, "status");
@@ -646,7 +648,7 @@ function normalise(a, g, id, files, url, group, man = {}) {
     level: lvNum || lvRaw,
     lv: LEVELS[lvNum] || UNGRADED,
     journey: pick(a, "journey", "journeylength", "journey_length", "journey_len", "access"),
-    themes: pick(a, "themes", "theme", "topics", "tema"),
+    themes: themeText(pick(a, "theme_list"), pick(a, "theme_list_other")) || pick(a, "themes", "theme", "topics", "tema"),
     background: pick(a, "background", "description", "beskrivelse", "summary") || baked?.background || "",
     practical: pick(a, "practical", "practical_info", "access_info", "directions") || baked?.practical || "",
     cover: baked ? `covers/${ckey}.jpg` : null,
