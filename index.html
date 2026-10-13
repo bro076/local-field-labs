@@ -110,6 +110,7 @@ h1,h2,h3{font-family:var(--display);letter-spacing:-.02em;margin:0;text-wrap:bal
 .loaded .cimg{opacity:1}
 .texts{display:flex;flex-direction:column;gap:22px}
 .texts.skeleton .s{background:linear-gradient(90deg,var(--mist) 0,var(--mist-2) 40%,var(--mist) 80%);background-size:300% 100%;animation:sh 1.4s ease infinite;border-radius:6px}
+.leaflet-container a.pill.map-suggest{color:#fff}
 .map-suggest{position:absolute;left:16px;bottom:28px;z-index:1000;box-shadow:var(--shadow-2)}
 @media (max-width:860px){.map-suggest{display:none}}
 .thumb .ph{position:absolute;inset:0;display:grid;place-items:center}
@@ -229,6 +230,10 @@ h1,h2,h3{font-family:var(--display);letter-spacing:-.02em;margin:0;text-wrap:bal
   .intro .eyebrow,.intro p{display:none}
   .intro h1{font-size:22px}
   .tools{padding:10px 16px}
+  .chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:none}
+  .tools{gap:10px}
   .result-row{padding:4px 16px 6px}
   .cards{padding:2px 4px 8px}
   .suggest{margin:8px 16px 20px}
@@ -256,7 +261,7 @@ h1,h2,h3{font-family:var(--display);letter-spacing:-.02em;margin:0;text-wrap:bal
   <span class="grow"></span>
   <nav>
     <a class="navlink" href="https://www.iearth.no/" target="_blank" rel="noopener">About iEarth</a>
-    <a class="pill" href="https://survey123.arcgis.com/share/d871fd9c8ca445189b7aa0eb8ef54ac0" target="_blank" rel="noopener"><span class="dot" aria-hidden="true"></span>Suggest<span class="long">&nbsp;a locality</span></a>
+    <a class="pill" href="https://survey123.arcgis.com/share/d871fd9c8ca445189b7aa0eb8ef54ac0" target="_blank" rel="noopener"><span class="dot" aria-hidden="true"></span><span>Suggest<span class="long"> a locality</span></span></a>
   </nav>
 </header>
 
