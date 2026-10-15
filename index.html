@@ -434,10 +434,9 @@ window.LFLmine = (() => {
    A record needs a point, a name field and (ideally) a PDF attachment.
 =================================================================== */
 const SOURCES = [
-  // Original localities (read-only view of the LFL Edit Layer); every layer in the service is read
-  "https://services-eu1.arcgis.com/I4gI6NWsuGrIM5YT/arcgis/rest/services/LFL_Viewlayer_(new)/FeatureServer",
-  // Localities submitted through Survey123 and approved
-  "https://services-eu1.arcgis.com/I4gI6NWsuGrIM5YT/arcgis/rest/services/LFL_Localities_Approved/FeatureServer/0"
+  // Read-only view of the LFL Edit Layer (Bedrock and Quaternary localities). Approved Survey123
+  // submissions are copied into the Edit Layer by the hourly notebook, so they appear here too.
+  "https://services-eu1.arcgis.com/I4gI6NWsuGrIM5YT/arcgis/rest/services/LFL_Viewlayer_(new)/FeatureServer"
 ];
 const NORWAY = [[57.8, 4.3], [71.3, 31.2]];
 
